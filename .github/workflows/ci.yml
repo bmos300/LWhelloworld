@@ -10,11 +10,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
       - name: Build image
-        run: docker build -f Containerfile -t hello-world .
+        run: podman build -f Containerfile -t hello-world .
 
       - name: Smoke test
         run: |
-          docker run --rm -d -p 8080:80 --name hello-world hello-world
-          curl -fsS http://127.0.0.1:8080 | grep -q "Hello World"
-          docker stop hello-world
+          podman run --rm -d -p 8080:80 --name hello-world hello-world
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080 | grep -q "Hello World"; then
+              echo "Smoke test passed"
+              podman stop hello-world
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Smoke test failed: page never became ready"
+          podman logs hello-world || true
+          podman stop hello-world || true
+          exit 1
